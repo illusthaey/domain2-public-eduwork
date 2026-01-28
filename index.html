@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>교육행정 업무 효율화 지원 웹페이지</title>
+
+  <link rel="icon" href="/static/favicon.ico" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+
+<body>
+<main class="container">
+
+  <h1>교육행정 업무 효율화 지원 웹페이지</h1>
+  <p class="subtitle">부제: 제작·운영 — 천재 고주무관</p>
+
+  <p class="muted">
+    ·학교 행정 업무 수행 과정에서 반복되는 산출·정리 업무를 구조화하여, 업무 효율성과 정확성을 높이기 위해 설계·제작한 업무 지원 웹페이지입니다.<br/>
+    ·현재는 서버 미사용 중이라 구현에 제한이 있으며, 업무 여건이 허용되는 범위 내에서 단계적으로 업데이트할 예정입니다.<br/>
+  </p>
+
+  <hr/>
+
+  <!-- ========================= 다운로드 섹션 ========================= -->
+  <section class="section dl-section">
+    <h2 class="local-h2">업무 시간 단축용 파이썬 프로그램 다운로드</h2>
+    <hr/>
+
+    <div class="tool-grid">
+
+      <!-- 카드 1 : 미납자 자동 생성 -->
+      <article class="tool-card">
+        <header class="tool-head">
+          <h3 class="tool-title">
+            세입 미납자 독촉 문자 발송 업무 경감 프로그램
+          </h3>
+        </header>
+
+        <a class="btn primary tool-btn" id="downloadUnpaid" href="#" download>
+          세입 미납자 독촉 문자 발송 업무 경감 프로그램 (초등)
+        </a>
+
+        <div class="tool-body">
+          <ul class="tool-list">
+            ·전체 미납자 조회 내역 pdf 다운로드하면 미납자별로 문자에 적을 독촉 문구랑 고지내역 이미지 파일 생성해줌.<br/>
+            ·독촉 이력 정리하기 쉽게 서식 만들어줌.<br/>
+            ·pdf 다운로드 경로: 학교회계 > 수입관리 > 수입현황 > 징수및수납현황 > 미납자현황<br/>
+            ·※아직 초등학교 pdf 서식만 데이터 추출 가능 <br/>
+          </ul>
+
+          <!-- 실행 화면 접기/펼치기 -->
+          <details class="shot-details">
+            <summary class="shot-summary">프로그램 실행 화면 보기</summary>
+            <figure class="tool-shot">
+              <img
+                src="/static/program_unpaid_tool_02.jpg"
+                alt="미납자 현황 PDF → 미납자 명단 및 고지서 자동 생성 프로그램 실행 화면"
+                class="tool-thumb"
+                loading="lazy"
+              /> <br/>
+              <img
+                src="/static/program_unpaid_tool_03.jpg"
+                alt="엑셀 문구 생성 화면"
+                class="tool-thumb"
+                loading="lazy"
+              /> <br/>
+              <img
+                src="/static/program_unpaid_tool_04.jpg"
+                alt="미납 고지서 png 생성 화면"
+                class="tool-thumb"
+                loading="lazy"
+              /> <br/>
+            </figure>
+          </details>
+        </div>
+      </article>
+
+      <!-- 카드 2 : 기타소득 PDF → 엑셀 -->
+      <article class="tool-card">
+        <header class="tool-head">
+          <h3 class="tool-title">
+            연말정산 기타소득 등록 업무 경감 프로그램
+          </h3>
+        </header>
+
+        <a class="btn primary tool-btn" id="downloadExpense" href="#" download>
+          연말정산 기타소득 등록 업무 경감 프로그램
+        </a>
+
+        <div class="tool-body">
+          <ul class="tool-list">
+            ·지출결의서 PDF 1년치 올리면 "기타" 및 "보수(일용)" 유형만 선별해서 엑셀 파일로 변환해줌<br/>
+          </ul>
+
+          <!-- 실행 화면 접기/펼치기 -->
+          <details class="shot-details">
+            <summary class="shot-summary">프로그램 실행 화면 보기</summary>
+            <figure class="tool-shot">
+              <img
+                src="/static/program_pdf_to_excel_01.jpg"
+                alt="지출결의서 PDF → 엑셀 변환 프로그램 실행 화면"
+                class="tool-thumb"
+                loading="lazy"
+              />
+            </figure>
+          </details>
+        </div>
+      </article>
+
+    </div>
+
+    <script>
+      const UNPAID_URL =
+        "https://github.com/comicshaey/filedownloadhaey/releases/download/pdf-to-png/unpaid_tool.exe";
+
+      const EXPENSE_URL =
+        "https://github.com/comicshaey/filedownloadhaey/releases/download/pdf-to-excel/expense_pdf_to_excel_data_v260117.exe.exe";
+
+      window.addEventListener("DOMContentLoaded", () => {
+        const unpaid = document.getElementById("downloadUnpaid");
+        const expense = document.getElementById("downloadExpense");
+
+        if (unpaid) unpaid.href = UNPAID_URL;
+        if (expense) expense.href = EXPENSE_URL;
+      });
+    </script>
+  </section>
+
+  <!-- ========================= 본문 섹션들 ========================= -->
+
+  <section class="section">
+    <h2 class="local-h2">교육공무직 인건비 관련</h2>
+    <hr/>
+
+    <div>
+      <a class="btn" href="/ordinary-wage/">교육공무직 통상임금 계산기</a>
+      <div class="btn-desc">·직종별 보수표 반영 (기본 기능 구현 완료, 시범 운영 가능)</div>
+    </div>
+
+    <div>
+      <a class="btn" href="/vacation-weekly-holiday-wage/">조리종사원 및 청소원 방학근무 인건비 일할 계산기</a>
+      <div class="btn-desc">·방학중 근무수당, 주휴수당 등 산출식 (일부 기능 구현 단계)</div>
+    </div>
+
+    <div>
+      <a class="btn" href="/cook-industrial-safety-education-pay/">조리종사원 산업안전보건교육비 계산기</a>
+      <div class="btn-desc">·집체/온라인 교육비 산출 (시범 운영 가능)</div>
+    </div>
+
+    <div>
+      <a class="btn" href="/effect-of-working-during-vacation/">방학중 비상시근로자 부수 영향 계산기</a>
+      <div class="btn-desc">·출근율, 연차 산정 (초안 단계)</div>
+    </div>
+
+    <div>
+      <a class="btn" href="/annual-leave/">교육공무직 연차 유급휴가 계산기</a>
+      <div class="btn-desc">·기본 계산 로직 구현 단계</div>
+    </div>
+
+    <div>
+      <a class="btn" href="/annual-leave-pay/">연차 유급휴가 미사용 수당 계산기</a>
+      <div class="btn-desc">·통상임금 계산기 연계 예정</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="local-h2">계약제교원 인건비 예산 및 지급</h2>
+    <hr/>
+    <a class="btn" href="/preschool-parttime-contract-teacher/">
+      유치원 시간제근무 기간제교원 연간 인건비 계산기
+    </a>
+    <div class="btn-desc">·근무 유형별 산출 구조 반영</div>
+  </section>
+
+  <section class="section">
+    <h2 class="local-h2">학교운동부지도자·스포츠강사</h2>
+    <hr/>
+
+    <div>
+      <a class="btn" href="/user-fee-ratio/">운동부지도자 수익자부담금 비율 계산기</a>
+      <div class="btn-desc">·비율 산정 로직 구현 완료</div>
+    </div>
+
+    <div>
+      <a class="btn" href="/sports-contract-teacher-budget-calculator/">스포츠강사 연간 인건비 계산기</a>
+      <div class="btn-desc">·2025회계 기준</div>
+    </div>
+
+    <div>
+      <a class="btn" href="/dc-retirement/">DC형 퇴직연금 소요액 계산기</a>
+      <div class="btn-desc">·회계연도 선택 기능 포함</div>
+    </div>
+
+    <div>
+      <a class="btn" href="/wage-ledger-2025/">학교장 임용권자 2025 임금대장</a>
+      <div class="btn-desc">·엑셀 변환 제공</div>
+    </div>
+
+    <div>
+      <a class="btn" href="/coach-ot/">학교운동부지도자 초과근무수당 계산기</a>
+      <div class="btn-desc">·산출 로직 구현 단계</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2 class="local-h2">그 외 근로계약자</h2>
+    <hr/>
+    <div>
+      <a class="btn" href="/parttime-wage-calculator/">시급·일급제 근로계약자 인건비 계산기</a>
+      <div class="btn-desc">·초단시간/단시간 자동 구분</div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="shell" style="text-align:center;">
+    제작·운영: 킹갓엠페러슈퍼초천재 고주무관 · Contact: edusproutcomics@naver.com · 개인 제작·운영 페이지
+  </div>
+</footer>
+
+<script src="/static/disable-copy.js"></script>
+<script src="/static/global-loader.js?v=1"></script>
+</body>
+</html>
