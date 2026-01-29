@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>방과후강사 월보수액 계산기</title>
+
+  <link rel="icon" href="/static/favicon.ico" />
+  <link rel="stylesheet" href="/static/style.css" />
+
+  <!-- PDF.js / SheetJS (브라우저 로컬 처리) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    /* 페이지 전용 최소 스타일 (전체 톤은 /static/style.css 유지) */
+    .card { border:1px solid #e5e7eb; border-radius:14px; padding:16px; margin:12px 0; background:#fff; }
+    .muted { color:#64748b; font-size:13px; line-height:1.6; }
+    .grid2 { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .grid3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+    .drop-zone {
+      border:2px dashed #cbd5e1; border-radius:14px; padding:18px; background:#f8fafc;
+      cursor:pointer; transition:.2s; text-align:center;
+    }
+    .drop-zone.dragover { border-color:#0f766e; background:#ecfeff; }
+    .file-info { margin-top:8px; font-size:13px; color:#334155; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    th, td { border:1px solid #e5e7eb; padding:8px; text-align:left; }
+    th { background:#f8fafc; }
+    .right { text-align:right; }
+    .btn-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .warn { color:#b91c1c; font-weight:700; }
+    @media (max-width: 900px){ .grid2,.grid3{ grid-template-columns:1fr; } }
+  </style>
+</head>
+
+<body>
+<main class="container" style="max-width:980px; margin:0 auto; padding:24px 16px;">
+  <header class="site-header">
+    <div class="shell">
+      <h1>방과후강사 월보수액 계산기</h1>
+      <p class="muted">
+        ·품의서 PDF 업로드 → 강사별 총 품의금액 집계 → 필요경비율 반영 월보수액 산정 → 산재/고용 보험료 산출<br/>
+        ·업로드 파일은 서버로 전송되지 않고 브라우저(사용자 PC)에서만 처리됩니다.5
+      </p>
+    </div>
+  </header>
+
+  <!-- 1) 업로드 -->
+  <section class="card">
+    <h2 style="margin:0 0 8px;">1. 품의서 PDF 업로드</h2>
+
+    <input id="pdfInput" type="file" accept="application/pdf" multiple style="display:none" />
+    <div id="dropZone" class="drop-zone">
+      <div style="font-weight:800;">PDF 파일 선택(클릭) 또는 드래그</div>
+      <div class="muted">복수 파일 가능 · 품목내역(강사료/끝전 등) 자동 추출</div>
+      <div id="fileNames" class="file-info">선택된 파일 없음</div>
+    </div>
+
+    <div class="muted" style="margin-top:10px;">
+      ※ “끝전/충당금”처럼 강사명이 없는 행은 자동 부착이 불확실하면 “미확정”으로 분리됩니다.
+    </div>
+  </section>
+
+  <!-- 2) 설정 -->
+  <section class="card">
+    <h2 style="margin:0 0 8px;">2. 산정 설정</h2>
+
+    <div class="grid3">
+      <label>
+        지급월(YYYY-MM)
+        <input id="payMonth" type="text" placeholder="예: 2026-03" />
+      </label>
+
+      <label>
+        필요경비 적용기간
+        <select id="periodSel"></select>
+      </label>
+
+      <label>
+        필요경비율 직접입력(%) (선택)
+        <input id="customRate" type="number" step="0.1" placeholder="예: 14.9" />
+      </label>
+    </div>
+
+    <div class="grid3" style="margin-top:12px;">
+      <label>
+        비과세소득(합계) (기본 0)
+        <input id="nontaxable" type="number" step="1" value="0" />
+      </label>
+
+      <label>
+        기준보수액 하한(기본 1,330,000)
+        <input id="minBase" type="number" step="1" value="1330000" />
+      </label>
+
+      <label>
+        보험료율(총)
+        <div class="grid2" style="gap:8px;">
+          <input id="rateWCI" type="number" step="0.0001" value="0.0066" />
+          <input id="rateEMP" type="number" step="0.0001" value="0.016" />
+        </div>
+        <div class="muted">산재 0.66% / 고용 1.6% (기본값)</div>
+      </label>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn primary" id="btnRun" type="button">계산 실행</button>
+      <button class="btn" id="btnDownload" type="button" disabled>엑셀 다운로드</button>
+      <a class="btn" href="/">메인으로 돌아가기</a>
+    </div>
+
+    <div id="status" class="muted" style="margin-top:8px;"></div>
+  </section>
+
+  <!-- 3) 결과 -->
+  <section class="card">
+    <h2 style="margin:0 0 8px;">3. 결과</h2>
+
+    <div class="grid2">
+      <div>
+        <h3 style="margin:0 0 6px;">강사별 월보수액</h3>
+        <div style="overflow:auto; max-height:360px;">
+          <table id="tblSummary">
+            <thead>
+              <tr>
+                <th>강사명</th>
+                <th>강좌(추출)</th>
+                <th class="right">총품의금액</th>
+                <th class="right">월보수액</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <h3 style="margin:0 0 6px;">미확정(검토 필요)</h3>
+        <div class="muted">끝전/충당금 등 강사 자동 귀속 불확실 항목</div>
+        <div style="overflow:auto; max-height:360px; margin-top:8px;">
+          <table id="tblUncertain">
+            <thead>
+              <tr>
+                <th>PDF</th>
+                <th>내용</th>
+                <th class="right">금액</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script src="./script.js"></script>
+
+  <script src="/static/global-loader.js?v=1"></script>
+  <script src="/static/footer.js"></script>
+  <script src="/static/disable-copy.js"></script>
+</main>
+</body>
+</html>
