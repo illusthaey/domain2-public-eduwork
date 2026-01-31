@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>2026학년도 연차유급휴가 부여일수 계산기</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!--
+    XLSX 라이브러리(SheetJS) 필요:
+    - 내부망/오프라인 배포 시: xlsx.full.min.js를 프로젝트에 포함하여 아래 script src를 로컬로 변경
+    - 예시(CDN): https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js
+  -->
+  <script src="xlsx.full.min.js"></script>
+  <script>
+    // XLSX(=SheetJS) 로컬 파일이 없거나 로딩 실패 시, CDN에서 추가 로딩합니다.
+    // 내부망에서 외부 접속이 차단되는 경우: 아래 CDN 로딩이 실패하므로, xlsx.full.min.js를 폴더에 직접 넣어야 합니다.
+    (function () {
+      if (window.XLSX) return;
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.async = true;
+      s.onload = function () { console.log('[annual-leave-2026] XLSX loaded from CDN'); };
+      s.onerror = function () { console.warn('[annual-leave-2026] XLSX CDN load failed. Please provide local xlsx.full.min.js'); };
+      document.head.appendChild(s);
+    })();
+  </script>
+</head>
+
+<body>
+  <header class="container">
+    <h1>2026학년도 연차유급휴가 부여일수 계산기</h1>
+    <p class="muted">
+      본 도구는 <b>2026학년도(2026-03-01 부여)</b> 전용입니다. 기준기간은 <b>2025-03-01 ~ 2026-02-28</b>이며,
+      업로드한 파일은 브라우저에서만 처리됩니다(서버 전송 없음).
+    </p>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>1) 학교 학사일정 입력</h2>
+      <div class="grid-2">
+        <div>
+          <h3>여름방학</h3>
+          <label>시작일 <input type="date" id="summerStart"></label>
+          <label>종료일 <input type="date" id="summerEnd"></label>
+        </div>
+        <div>
+          <h3>겨울방학</h3>
+          <label>시작일 <input type="date" id="winterStart"></label>
+          <label>종료일 <input type="date" id="winterEnd"></label>
+        </div>
+      </div>
+      <details>
+        <summary>고급 설정</summary>
+        <div class="grid-2">
+          <label>주 소정근로일수(시간제/단시간용, 기본 5일)
+            <input type="number" id="workdaysPerWeek" min="1" max="7" value="5">
+          </label>
+          <label>육아휴직 출근간주 총 한도(일) (기본 365일, 필요 시 조정)
+            <input type="number" id="parentalDeemedCapDays" min="0" value="365">
+          </label>
+        </div>
+        <p class="muted">
+          육아휴직 출근간주(자녀 1인당 1년/1년6개월)는 자녀 수/요건에 따라 달라질 수 있어,
+          MVP에서는 <b>총 인정일수</b>를 사용자가 조정하는 방식으로 처리합니다(기록 존재 시 경고 표시).
+        </p>
+      </details>
+    </section>
+
+    <section class="card">
+      <h2>2) 나이스 파일 업로드</h2>
+      <div class="grid-2">
+        <div>
+          <h3>인사기록 조회(엑셀)</h3>
+          <input type="file" id="hrFile" accept=".xlsx,.xls,.csv" />
+          <p class="muted">시트: 인사기록-교육공무직</p>
+        </div>
+        <div>
+          <h3>근무상황목록(엑셀/CSV, 다중 업로드 가능)</h3>
+          <input type="file" id="workFiles" multiple accept=".xlsx,.xls,.csv" />
+          <p class="muted">시트: 근무상황목록</p>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="btnRun" class="primary">계산 실행</button>
+        <button id="btnDownload" disabled>결과 엑셀 다운로드</button>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <section class="card">
+      <h2>3) 계산 결과</h2>
+      <div id="summary"></div>
+      <div id="results"></div>
+    </section>
+
+    <section class="card">
+      <h2>4) 복무 취합 상세(검토용)</h2>
+      <div id="details"></div>
+    </section>
+  </main>
+
+  <footer class="container muted">
+    <p>버전: <span id="appVersion">-</span></p>
+  </footer>
+
+  <script id="rulesJson" type="application/json">
+{
+  "app": {
+    "name": "2026학년도 연차유급휴가 부여일수 계산기",
+    "version": "2026.1",
+    "fixed_period": {
+      "work_start": "2025-03-01",
+      "work_end": "2026-02-28",
+      "grant_date": "2026-03-01"
+    }
+  },
+  "parsing": {
+    "work_status_sheet_name_candidates": [
+      "근무상황목록"
+    ],
+    "hr_sheet_name_candidates": [
+      "인사기록-교육공무직"
+    ]
+  },
+  "classification": {
+    "kind_rules": [
+      {
+        "kind": "연차",
+        "category": "DEEMED",
+        "tags": [
+          "annual_leave_used"
+        ]
+      },
+      {
+        "kind": "연차(지각)",
+        "category": "DEEMED",
+        "tags": [
+          "annual_leave_used"
+        ]
+      },
+      {
+        "kind": "연차(조퇴)",
+        "category": "DEEMED",
+        "tags": [
+          "annual_leave_used"
+        ]
+      },
+      {
+        "kind": "공가",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "경조사휴가",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "특별휴가",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "장기재직휴가",
+        "category": "DEEMED",
+        "tags": [
+          "long_service_leave"
+        ]
+      },
+      {
+        "kind": "병가",
+        "category": "DEEMED",
+        "caps": {
+          "paid_sick_days_per_year": 60
+        }
+      },
+      {
+        "kind": "병지각",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "병조퇴",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "자녀돌봄휴가",
+        "category": "DEEMED",
+        "caps": {
+          "family_care_days_per_year": 10
+        }
+      },
+      {
+        "kind": "가족돌봄휴가",
+        "category": "DEEMED",
+        "caps": {
+          "family_care_days_per_year": 10
+        }
+      },
+      {
+        "kind": "기타",
+        "category": "REVIEW"
+      }
+    ],
+    "reason_rules": [
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "학교장재량휴업일",
+            "재량휴업일"
+          ]
+        },
+        "category": "DEEMED",
+        "tags": [
+          "discretionary_closure"
+        ]
+      },
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "산업안전",
+            "안전보건",
+            "안전 보건",
+            "산안",
+            "온라인교육",
+            "직무연수",
+            "직무 연수",
+            "연수",
+            "교육 이수"
+          ]
+        },
+        "category": "DEEMED",
+        "vacation_credit": true,
+        "tags": [
+          "vacation_paid_training"
+        ]
+      },
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "급식실 청소",
+            "급식소 청소",
+            "급식실청소",
+            "급식 청소",
+            "청소 업무",
+            "청소"
+          ]
+        },
+        "category": "DEEMED",
+        "vacation_credit": true,
+        "tags": [
+          "vacation_work"
+        ]
+      },
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "우선 채용",
+            "우선채용",
+            "추가 근무",
+            "추가근무",
+            "근무 지원",
+            "근무지원"
+          ]
+        },
+        "category": "DEEMED",
+        "vacation_credit": true,
+        "tags": [
+          "vacation_work"
+        ]
+      },
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "조합원 교육",
+            "노조 교육",
+            "조합 교육"
+          ]
+        },
+        "category": "REVIEW",
+        "tags": [
+          "union_training_needs_review"
+        ]
+      }
+    ],
+    "excluded_kinds": [
+      "가족돌봄휴직",
+      "질병휴직",
+      "노조전임휴직",
+      "유학휴직",
+      "행방불명휴직",
+      "파업",
+      "쟁의행위",
+      "사용자귀책휴업",
+      "휴업"
+    ],
+    "absence_like_kinds": [
+      "결근",
+      "무단결근",
+      "연차초과",
+      "연가초과",
+      "무급"
+    ],
+    "decision_notes": {
+      "unknown_kind_default": "REVIEW",
+      "unknown_kind_effect": "does_not_change_rates_but_flags"
+    }
+  },
+  "attendance": {
+    "exclude_saturday": true,
+    "default_workdays_per_week": 5,
+    "short_time_threshold_weekly_minutes": 900,
+    "rounding": {
+      "proration_days_round_to_0_1": true,
+      "hours_per_day_default": 8
+    }
+  }
+}
+</script>
+
+  <script src="app.js"></script>
+</body>
+</html>

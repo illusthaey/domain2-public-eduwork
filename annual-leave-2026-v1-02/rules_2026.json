@@ -1,0 +1,213 @@
+{
+  "app": {
+    "name": "2026학년도 연차유급휴가 부여일수 계산기",
+    "version": "2026.1",
+    "fixed_period": {
+      "work_start": "2025-03-01",
+      "work_end": "2026-02-28",
+      "grant_date": "2026-03-01"
+    }
+  },
+  "parsing": {
+    "work_status_sheet_name_candidates": [
+      "근무상황목록"
+    ],
+    "hr_sheet_name_candidates": [
+      "인사기록-교육공무직"
+    ]
+  },
+  "classification": {
+    "kind_rules": [
+      {
+        "kind": "연차",
+        "category": "DEEMED",
+        "tags": [
+          "annual_leave_used"
+        ]
+      },
+      {
+        "kind": "연차(지각)",
+        "category": "DEEMED",
+        "tags": [
+          "annual_leave_used"
+        ]
+      },
+      {
+        "kind": "연차(조퇴)",
+        "category": "DEEMED",
+        "tags": [
+          "annual_leave_used"
+        ]
+      },
+      {
+        "kind": "공가",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "경조사휴가",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "특별휴가",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "장기재직휴가",
+        "category": "DEEMED",
+        "tags": [
+          "long_service_leave"
+        ]
+      },
+      {
+        "kind": "병가",
+        "category": "DEEMED",
+        "caps": {
+          "paid_sick_days_per_year": 60
+        }
+      },
+      {
+        "kind": "병지각",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "병조퇴",
+        "category": "DEEMED"
+      },
+      {
+        "kind": "자녀돌봄휴가",
+        "category": "DEEMED",
+        "caps": {
+          "family_care_days_per_year": 10
+        }
+      },
+      {
+        "kind": "가족돌봄휴가",
+        "category": "DEEMED",
+        "caps": {
+          "family_care_days_per_year": 10
+        }
+      },
+      {
+        "kind": "기타",
+        "category": "REVIEW"
+      }
+    ],
+    "reason_rules": [
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "학교장재량휴업일",
+            "재량휴업일"
+          ]
+        },
+        "category": "DEEMED",
+        "tags": [
+          "discretionary_closure"
+        ]
+      },
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "산업안전",
+            "안전보건",
+            "안전 보건",
+            "산안",
+            "온라인교육",
+            "직무연수",
+            "직무 연수",
+            "연수",
+            "교육 이수"
+          ]
+        },
+        "category": "DEEMED",
+        "vacation_credit": true,
+        "tags": [
+          "vacation_paid_training"
+        ]
+      },
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "급식실 청소",
+            "급식소 청소",
+            "급식실청소",
+            "급식 청소",
+            "청소 업무",
+            "청소"
+          ]
+        },
+        "category": "DEEMED",
+        "vacation_credit": true,
+        "tags": [
+          "vacation_work"
+        ]
+      },
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "우선 채용",
+            "우선채용",
+            "추가 근무",
+            "추가근무",
+            "근무 지원",
+            "근무지원"
+          ]
+        },
+        "category": "DEEMED",
+        "vacation_credit": true,
+        "tags": [
+          "vacation_work"
+        ]
+      },
+      {
+        "when": {
+          "kind": "기타",
+          "reason_includes_any": [
+            "조합원 교육",
+            "노조 교육",
+            "조합 교육"
+          ]
+        },
+        "category": "REVIEW",
+        "tags": [
+          "union_training_needs_review"
+        ]
+      }
+    ],
+    "excluded_kinds": [
+      "가족돌봄휴직",
+      "질병휴직",
+      "노조전임휴직",
+      "유학휴직",
+      "행방불명휴직",
+      "파업",
+      "쟁의행위",
+      "사용자귀책휴업",
+      "휴업"
+    ],
+    "absence_like_kinds": [
+      "결근",
+      "무단결근",
+      "연차초과",
+      "연가초과",
+      "무급"
+    ],
+    "decision_notes": {
+      "unknown_kind_default": "REVIEW",
+      "unknown_kind_effect": "does_not_change_rates_but_flags"
+    }
+  },
+  "attendance": {
+    "exclude_saturday": true,
+    "default_workdays_per_week": 5,
+    "short_time_threshold_weekly_minutes": 900,
+    "rounding": {
+      "proration_days_round_to_0_1": true,
+      "hours_per_day_default": 8
+    }
+  }
+}
