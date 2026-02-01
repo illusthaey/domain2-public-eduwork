@@ -1,7 +1,6 @@
 <!doctype html>
 <html lang="ko">
 <head>
-
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light" />
@@ -56,6 +55,11 @@
     /* ✅ <li> 없이 tool-list를 쓰기 위한 보강 스타일 */
     .tool-list { margin: 10px 0 0; padding: 0; }
     .tool-list .tool-line { margin: 0 0 6px; }
+
+    /* ✅ 기준 설정: 필요경비율 고정/수기변경 UI */
+    .inline-row { display:flex; gap:10px; align-items:center; }
+    .inline-row .chk { display:flex; gap:6px; align-items:center; white-space:nowrap; }
+    #baseExpenseRate[disabled] { background:#f3f3f3; color:#555; cursor:not-allowed; }
   </style>
 </head>
 
@@ -65,7 +69,7 @@
       <div>
         <h2 class="page-title">방과후강사 월보수액 계산기</h2>
         <div class="small">
-            ·품의금액(강사료) 입력하면 월보수액 및 산재보험료 개인부담금 자동으로 산출해드립니다.<br/>
+          ·품의금액(강사료) 입력하면 월보수액 및 산재보험료 개인부담금 자동으로 산출해드립니다.<br/>
         </div>
       </div>
 
@@ -85,19 +89,30 @@
       <div class="grid three">
         <div class="field">
           <label class="small">필요경비율(%)</label><br/>
-          <input id="baseExpenseRate" type="number" step="0.1" value="14.9" />
+          <div class="inline-row">
+            <!-- ✅ 기본은 고정(비활성). 체크하면 수기 변경 가능 -->
+            <input id="baseExpenseRate" type="number" step="0.1" value="14.9" disabled />
+            <label class="small chk">
+              <input type="checkbox" id="chkEditExpenseRate" />
+              수기 변경
+            </label>
+          </div>
         </div>
+
         <div class="field">
           <label class="small">산재보험료율(개인)</label><br/>
           <input id="wcPersonalRate" type="number" step="0.01" value="0.33" />
         </div>
+
         <div class="field">
           <label class="small">기준보수 하한값</label><br/>
           <input id="floorMonthlyPay" type="number" step="10" value="1330000" />
         </div>
       </div>
+
       <p class="hint">
-        ·필요경비율 기본값을 14.9%로 설정 해두었으나 수기 입력 가능합니다.<br/>
+        ·필요경비율은 기본값(14.9%)으로 고정되어 있으며, **[수기 변경] 체크 시** 입력 가능합니다.<br/>
+        ·기준 설정의 필요경비율을 바꾸면, 산출내역의 필요경비율도 **전 행 자동 연동**됩니다.<br/>
         ·참고: 2024.7월~2025.6월 필요경비율 16.5%임.
       </p>
     </section>
@@ -147,15 +162,24 @@
 
       <div class="table-actions">
         <div class="toolbar">
+          <!-- ✅ 엑셀 입력/업로드 UI 추가 -->
+          <button class="btn ghost" id="btnDownloadTemplate" type="button">엑셀 서식 다운로드</button>
+          <button class="btn ghost" id="btnUploadExcel" type="button">엑셀 업로드</button>
+          <input id="fileUploadExcel" type="file" accept=".xlsx,.xls,.csv" style="display:none" />
+
           <button class="btn ghost" id="btnAddRow" type="button">행 추가하기</button>
           <button class="btn ghost" id="btnReset" type="button">초기화</button>
           <button class="btn primary" id="btnCopy" type="button">표 복사하기</button>
           <button class="btn ghost" id="btnDownloadCsv" type="button">CSV 다운로드</button>
-          <button class="btn ghost" id="btnDownloadExcel" type="button">엑셀 다운로드</button>
+          <button class="btn ghost" id="btnDownloadExcel" type="button">결과 엑셀 다운로드</button>
         </div>
       </div>
-    </section>
 
+      <p class="hint">
+        ·엑셀 업로드는 **1행=헤더**, **A열=강사명**, **B열=강사료 지급액** 기준으로 읽습니다.<br/>
+        ·(참고) 결과 엑셀(순번/강사명/품의금액…) 파일을 올려도, 헤더를 보고 자동으로 열을 찾아 최대한 읽어옵니다.
+      </p>
+    </section>
 
     <section class="section dl-section">
       <h2 class="local-h2">프로그램 다운로드하기</h2>
@@ -190,8 +214,13 @@
     </section>
   </main>
 
+  <!-- ✅ 엑셀 업/다운로드용 라이브러리 (SheetJS) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+
   <script>
-    //계산
+    // =========================
+    // 계산
+    // =========================
 
     // 고용보험요율(개인) 기본값: 0.8%
     const EI_PERSONAL_RATE = 0.8 / 100.0;
@@ -203,14 +232,14 @@
       return Number.isFinite(n) ? n : 0;
     }
 
-    //원단위 절삭
+    // 원단위 절삭
     function cutWon10(n) {
       n = Math.floor(toInt(n));
       if (!Number.isFinite(n) || n <= 0) return 0;
       return Math.floor(n / 10) * 10;
     }
 
-    //천원 단위로 쉼표 넣기
+    // 천원 단위로 쉼표 넣기
     function fmt(n) {
       n = toInt(n);
       return n.toLocaleString("ko-KR");
@@ -251,9 +280,25 @@
       return s;
     }
 
+    function ensureXlsx() {
+      if (window.XLSX && typeof window.XLSX.read === "function" && typeof window.XLSX.writeFile === "function") {
+        return true;
+      }
+      alert(
+        "엑셀 기능을 불러오지 못했습니다.\n\n" +
+        "- 네트워크 차단/보안SW/방화벽 또는 스크립트 로딩 실패 가능\n" +
+        "- 임시로는 CSV 다운로드/업로드를 사용해 주세요."
+      );
+      return false;
+    }
+
+    // =========================
+    // DOM
+    // =========================
     const tbody = document.getElementById("tbody");
 
     const elBaseExpenseRate = document.getElementById("baseExpenseRate");
+    const elChkEditExpenseRate = document.getElementById("chkEditExpenseRate");
     const elWcPersonalRate = document.getElementById("wcPersonalRate");
     const elFloorMonthlyPay = document.getElementById("floorMonthlyPay");
 
@@ -263,6 +308,26 @@
     const elSumWcFee = document.getElementById("sumWcFee");
     const elSumEiFee = document.getElementById("sumEiFee");
 
+    // =========================
+    // 기준 설정: 필요경비율 잠금/해제
+    // =========================
+    function applyExpenseRateEditState() {
+      const allowEdit = !!elChkEditExpenseRate.checked;
+      elBaseExpenseRate.disabled = !allowEdit;
+      elBaseExpenseRate.title = allowEdit ? "" : "수기 변경을 체크하면 수정할 수 있습니다.";
+    }
+
+    elChkEditExpenseRate.addEventListener("change", () => {
+      applyExpenseRateEditState();
+      if (!elBaseExpenseRate.disabled) {
+        elBaseExpenseRate.focus();
+        elBaseExpenseRate.select();
+      }
+    });
+
+    // =========================
+    // 표 렌더/계산
+    // =========================
     function renumberRows() {
       const rows = [...tbody.querySelectorAll("tr")];
       rows.forEach((tr, i) => {
@@ -320,7 +385,9 @@
 
       const amountStr = tr.querySelector(".row-amount").value;
       const amount = toInt(amountStr);
-      const rowRateVal = tr.querySelector(".row-rate").value;
+
+      const rateInput = tr.querySelector(".row-rate");
+      const rowRateVal = rateInput.value;
       const rate = rowRateVal === "" ? baseExpenseRate : clampRate(rowRateVal);
 
       const expenseRaw = amount * (rate / 100.0);
@@ -372,13 +439,22 @@
       recalcSums();
     }
 
+    // ✅ 기준 설정 필요경비율 변경 시: 산출내역 필요경비율도 전 행 연동
+    function syncAllRowRatesFromBase() {
+      const base = clampRate(elBaseExpenseRate.value);
+      [...tbody.querySelectorAll("tr")].forEach(tr => {
+        const rateInput = tr.querySelector(".row-rate");
+        if (rateInput) rateInput.value = base;
+      });
+    }
+
     function collectRowsForExport() {
       const rows = [];
       [...tbody.querySelectorAll("tr")].forEach(tr => {
         const idx = tr.querySelector(".row-idx")?.textContent?.trim() || "";
         const teacher = tr.querySelector(".row-teacher").value.trim();
         const amount = toInt(tr.querySelector(".row-amount").value);
-        const rate = tr.querySelector(".row-rate").value;
+        const rateStr = tr.querySelector(".row-rate").value;
         const expense = toInt(tr.querySelector(".row-expense").textContent);
         const monthly = toInt(tr.querySelector(".row-monthly").textContent);
         const wc = toInt(tr.querySelector(".row-wcfee").textContent);
@@ -391,7 +467,7 @@
           idx,
           teacher,
           amount,
-          rate: (rate === "" ? toInt(elBaseExpenseRate.value) : rate),
+          rate: (rateStr === "" ? clampRate(elBaseExpenseRate.value) : clampRate(rateStr)),
           expense,
           monthly,
           wc,
@@ -425,61 +501,6 @@
       return "\uFEFF" + lines.join("\r\n");
     }
 
-    function buildExcelHtml() {
-      const rows = collectRowsForExport();
-      const header = ["순번","강사명","품의금액","필요경비율(%)","필요경비","월보수액","산재보험료(개인)","고용보험료(개인)","비고"];
-
-      const escapeHtml = (s) => String(s ?? "")
-        .replace(/&/g,"&amp;")
-        .replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;")
-        .replace(/"/g,"&quot;")
-        .replace(/'/g,"&#39;");
-
-      const trHeader = `<tr>${header.map(h => `<th>${escapeHtml(h)}</th>`).join("")}</tr>`;
-      const trBody = rows.map(r => (
-        `<tr>` +
-          `<td style="text-align:center;">${escapeHtml(r.idx)}</td>` +
-          `<td>${escapeHtml(r.teacher)}</td>` +
-          `<td style="mso-number-format:'0'; text-align:right;">${escapeHtml(r.amount)}</td>` +
-          `<td style="text-align:right;">${escapeHtml(r.rate)}</td>` +
-          `<td style="mso-number-format:'0'; text-align:right;">${escapeHtml(r.expense)}</td>` +
-          `<td style="mso-number-format:'0'; text-align:right;">${escapeHtml(r.monthly)}</td>` +
-          `<td style="mso-number-format:'0'; text-align:right;">${escapeHtml(r.wc)}</td>` +
-          `<td style="mso-number-format:'0'; text-align:right;">${escapeHtml(r.ei)}</td>` +
-          `<td>${escapeHtml(r.memo)}</td>` +
-        `</tr>`
-      )).join("");
-
-      return `
-        <html xmlns:o="urn:schemas-microsoft-com:office:office"
-              xmlns:x="urn:schemas-microsoft-com:office:excel"
-              xmlns="http://www.w3.org/TR/REC-html40">
-          <head>
-            <meta charset="utf-8" />
-            <!--[if gte mso 9]>
-              <xml>
-                <x:ExcelWorkbook>
-                  <x:ExcelWorksheets>
-                    <x:ExcelWorksheet>
-                      <x:Name>월보수액</x:Name>
-                      <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
-                    </x:ExcelWorksheet>
-                  </x:ExcelWorksheets>
-                </x:ExcelWorkbook>
-              </xml>
-            <![endif]-->
-          </head>
-          <body>
-            <table border="1">
-              ${trHeader}
-              ${trBody}
-            </table>
-          </body>
-        </html>
-      `.trim();
-    }
-
     function initRows(n = 10) {
       tbody.innerHTML = "";
       const defaultRate = clampRate(elBaseExpenseRate.value || 14.9);
@@ -491,7 +512,294 @@
       recalcAll();
     }
 
-    [elBaseExpenseRate, elWcPersonalRate, elFloorMonthlyPay].forEach(el => {
+    // =========================
+    // ✅ 방향키로 셀 이동 (입력칸: 강사명/강사료/필요경비율/비고)
+    // =========================
+    const NAV_COL_ORDER = ["row-teacher", "row-amount", "row-rate", "row-memo"];
+
+    function getColIndexFromInput(input) {
+      for (let i = 0; i < NAV_COL_ORDER.length; i++) {
+        if (input.classList.contains(NAV_COL_ORDER[i])) return i;
+      }
+      return -1;
+    }
+
+    function getRows() {
+      return [...tbody.querySelectorAll("tr")];
+    }
+
+    function getInputAt(rowIdx, colIdx) {
+      const rows = getRows();
+      if (rowIdx < 0 || rowIdx >= rows.length) return null;
+      const tr = rows[rowIdx];
+      const cls = NAV_COL_ORDER[colIdx];
+      return tr.querySelector("." + cls);
+    }
+
+    function caretAtStart(input) {
+      if (typeof input.selectionStart !== "number" || typeof input.selectionEnd !== "number") return true;
+      return input.selectionStart === 0 && input.selectionEnd === 0;
+    }
+
+    function caretAtEnd(input) {
+      if (typeof input.selectionStart !== "number" || typeof input.selectionEnd !== "number") return true;
+      const len = (input.value ?? "").length;
+      return input.selectionStart === len && input.selectionEnd === len;
+    }
+
+    function focusAndSelect(input) {
+      if (!input) return;
+      input.focus();
+      if (typeof input.select === "function") input.select();
+      input.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+
+    tbody.addEventListener("keydown", (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLInputElement)) return;
+
+      const col = getColIndexFromInput(t);
+      if (col === -1) return;
+
+      const tr = t.closest("tr");
+      if (!tr) return;
+
+      const rows = getRows();
+      const row = rows.indexOf(tr);
+      if (row === -1) return;
+
+      let nextRow = row;
+      let nextCol = col;
+
+      if (e.key === "ArrowUp") {
+        nextRow = row - 1;
+      } else if (e.key === "ArrowDown") {
+        nextRow = row + 1;
+      } else if (e.key === "ArrowLeft") {
+        // 왼쪽은 커서가 맨 앞일 때만 셀 이동 (텍스트 편집도 가능하게)
+        if (!caretAtStart(t)) return;
+        nextCol = col - 1;
+      } else if (e.key === "ArrowRight") {
+        // 오른쪽은 커서가 맨 끝일 때만 셀 이동
+        if (!caretAtEnd(t)) return;
+        nextCol = col + 1;
+      } else {
+        return;
+      }
+
+      if (nextCol < 0 || nextCol >= NAV_COL_ORDER.length) return;
+
+      const next = getInputAt(nextRow, nextCol);
+      if (!next) return;
+
+      e.preventDefault();
+      focusAndSelect(next);
+    });
+
+    // =========================
+    // ✅ 엑셀 서식 다운로드 / 업로드
+    // =========================
+    function buildTemplateWorkbook() {
+      const data = [["강사명", "강사료 지급액"]];
+      for (let i = 0; i < 50; i++) data.push(["", ""]);
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws["!cols"] = [{ wch: 18 }, { wch: 16 }];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "입력");
+      return wb;
+    }
+
+    function buildTemplateCsvText() {
+      const lines = [];
+      lines.push(["강사명", "강사료 지급액"].map(csvEscape).join(","));
+      for (let i = 0; i < 50; i++) lines.push(",");
+      return "\uFEFF" + lines.join("\r\n");
+    }
+
+    function normalizeHeaderCell(v) {
+      return String(v ?? "").replace(/\s/g, "").toLowerCase();
+    }
+
+    function detectUploadColumns(headerRow) {
+      const headers = (headerRow || []).map(normalizeHeaderCell);
+
+      // name 후보: 강사명, 이름
+      let nameIdx = headers.findIndex(h => h.includes("강사명") || h.includes("이름"));
+
+      // amount 후보: 강사료, 품의금액, 지급액, (그냥 금액도 포함하되 필요경비/보험료는 제외)
+      let amtIdx = headers.findIndex(h =>
+        h.includes("강사료") ||
+        h.includes("품의금액") ||
+        h.includes("지급액") ||
+        (h.includes("금액") && !h.includes("필요경비") && !h.includes("보험"))
+      );
+
+      // 못 찾으면 기본: A=이름, B=금액
+      if (nameIdx === -1) nameIdx = 0;
+      if (amtIdx === -1) amtIdx = 1;
+
+      // 혹시 같은 열로 잡히면, B로 밀기
+      if (amtIdx === nameIdx) amtIdx = Math.min(nameIdx + 1, 1);
+
+      return { nameIdx, amtIdx };
+    }
+
+    function parseCsvLine(line) {
+      const out = [];
+      let cur = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (line[i + 1] === '"') { cur += '"'; i++; }
+            else inQuotes = false;
+          } else {
+            cur += ch;
+          }
+        } else {
+          if (ch === '"') inQuotes = true;
+          else if (ch === ",") { out.push(cur); cur = ""; }
+          else cur += ch;
+        }
+      }
+      out.push(cur);
+      return out;
+    }
+
+    function parseCsvToRows(text) {
+      const clean = String(text ?? "").replace(/^\uFEFF/, "");
+      const lines = clean.split(/\r?\n/).filter(l => l.trim() !== "");
+      if (lines.length < 2) return [];
+
+      // 헤더 기반 감지는 CSV에도 적용
+      const header = parseCsvLine(lines[0]);
+      const { nameIdx, amtIdx } = detectUploadColumns(header);
+
+      const rows = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCsvLine(lines[i]);
+        const teacher = String(cols[nameIdx] ?? "").trim();
+        const amount = toInt(cols[amtIdx]);
+
+        if (!teacher && amount === 0) continue;
+        rows.push({ teacher, amount });
+      }
+      return rows;
+    }
+
+    async function readUploadFileToRows(file) {
+      const name = (file?.name || "").toLowerCase();
+      if (name.endsWith(".csv")) {
+        const text = await file.text();
+        return parseCsvToRows(text);
+      }
+
+      if (!ensureXlsx()) throw new Error("XLSX 라이브러리를 불러오지 못했습니다.");
+
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      const sheetName = wb.SheetNames?.[0];
+      if (!sheetName) return [];
+
+      const ws = wb.Sheets[sheetName];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+      if (!aoa || aoa.length < 2) return [];
+
+      const headerRow = aoa[0] || [];
+      const { nameIdx, amtIdx } = detectUploadColumns(headerRow);
+
+      const rows = [];
+      for (let r = 1; r < aoa.length; r++) {
+        const line = aoa[r] || [];
+        const teacher = String(line[nameIdx] ?? "").trim();
+        const amount = toInt(line[amtIdx]);
+
+        if (!teacher && amount === 0) continue;
+        rows.push({ teacher, amount });
+      }
+      return rows;
+    }
+
+    function applyRowsFromUpload(rows) {
+      tbody.innerHTML = "";
+      const defaultRate = clampRate(elBaseExpenseRate.value || 14.9);
+      const count = Math.max(rows.length, 1);
+
+      for (let i = 0; i < count; i++) {
+        const tr = makeRow(defaultRate);
+        tbody.appendChild(tr);
+
+        const r = rows[i];
+        if (r) {
+          tr.querySelector(".row-teacher").value = r.teacher || "";
+          tr.querySelector(".row-amount").value = r.amount ? fmt(r.amount) : "";
+          tr.querySelector(".row-rate").value = defaultRate;
+          tr.querySelector(".row-memo").value = "";
+        }
+      }
+
+      renumberRows();
+      recalcAll();
+    }
+
+    // =========================
+    // ✅ 결과 엑셀(.xlsx) 생성
+    // =========================
+    function buildResultWorkbook() {
+      const rows = collectRowsForExport();
+      const header = ["순번","강사명","강사료 지급액","필요경비율(%)","필요경비","월보수액","산재보험료(개인)","고용보험료(개인, 예상값)","비고"];
+
+      const data = [header];
+      rows.forEach(r => {
+        data.push([
+          (toInt(r.idx) || ""),
+          r.teacher,
+          toInt(r.amount),
+          Number(r.rate),
+          toInt(r.expense),
+          toInt(r.monthly),
+          toInt(r.wc),
+          toInt(r.ei),
+          r.memo
+        ]);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      ws["!cols"] = [
+        { wch: 6 }, { wch: 14 }, { wch: 16 }, { wch: 14 },
+        { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 22 }, { wch: 20 }
+      ];
+
+      const cfg = [
+        ["항목", "값"],
+        ["필요경비율(%)", clampRate(elBaseExpenseRate.value)],
+        ["산재보험료율(개인)(%)", clampRate(elWcPersonalRate.value)],
+        ["고용보험요율(개인)(%)", EI_PERSONAL_RATE * 100],
+        ["기준보수 하한값", cutWon10(elFloorMonthlyPay.value)]
+      ];
+      const wsCfg = XLSX.utils.aoa_to_sheet(cfg);
+      wsCfg["!cols"] = [{ wch: 22 }, { wch: 18 }];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "월보수액");
+      XLSX.utils.book_append_sheet(wb, wsCfg, "기준설정");
+      return wb;
+    }
+
+    // =========================
+    // 이벤트 바인딩
+    // =========================
+    // ✅ 기준 설정 값 변경
+    elBaseExpenseRate.addEventListener("input", () => {
+      syncAllRowRatesFromBase();
+      recalcAll();
+    });
+
+    [elWcPersonalRate, elFloorMonthlyPay].forEach(el => {
       el.addEventListener("input", () => recalcAll());
     });
 
@@ -503,24 +811,34 @@
     });
 
     document.getElementById("btnReset").addEventListener("click", () => {
+      elChkEditExpenseRate.checked = false;
+
+      // 값 초기화
       elBaseExpenseRate.value = "14.9";
       elWcPersonalRate.value = "0.33";
       elFloorMonthlyPay.value = "1330000";
+
+      // 잠금 적용 + 행 초기화
+      applyExpenseRateEditState();
       initRows(10);
     });
 
+    // ✅ CSV 다운로드
     document.getElementById("btnDownloadCsv").addEventListener("click", () => {
       const csv = buildCsvText();
       const filename = `방과후강사_월보수액_${ymd()}.csv`;
       downloadBlob(filename, "text/csv;charset=utf-8", csv);
     });
 
+    // ✅ 결과 엑셀 다운로드(.xlsx) + (실패 시 CSV로 안내)
     document.getElementById("btnDownloadExcel").addEventListener("click", () => {
-      const html = buildExcelHtml();
-      const filename = `방과후강사_월보수액_${ymd()}.xls`;
-      downloadBlob(filename, "application/vnd.ms-excel;charset=utf-8", html);
+      if (!ensureXlsx()) return;
+      const wb = buildResultWorkbook();
+      const filename = `방과후강사_월보수액_${ymd()}.xlsx`;
+      XLSX.writeFile(wb, filename);
     });
 
+    // ✅ 표 복사하기
     document.getElementById("btnCopy").addEventListener("click", async () => {
       const lines = [];
       lines.push(["순번","강사명","품의금액","필요경비율(%)","필요경비","월보수액","산재보험료(개인)","고용보험료(개인)","비고"].join("\t"));
@@ -546,6 +864,45 @@
       }
     });
 
+    // ✅ 엑셀 서식 다운로드
+    document.getElementById("btnDownloadTemplate").addEventListener("click", () => {
+      const date = ymd();
+      if (ensureXlsx()) {
+        const wb = buildTemplateWorkbook();
+        XLSX.writeFile(wb, `방과후강사_입력서식_${date}.xlsx`);
+      } else {
+        const csv = buildTemplateCsvText();
+        downloadBlob(`방과후강사_입력서식_${date}.csv`, "text/csv;charset=utf-8", csv);
+      }
+    });
+
+    // ✅ 엑셀 업로드
+    const elFileUpload = document.getElementById("fileUploadExcel");
+    document.getElementById("btnUploadExcel").addEventListener("click", () => {
+      elFileUpload.click();
+    });
+
+    elFileUpload.addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      try {
+        const rows = await readUploadFileToRows(file);
+        applyRowsFromUpload(rows);
+        alert(`엑셀 반영 완료: ${rows.length}명`);
+      } catch (err) {
+        console.error(err);
+        alert("엑셀 업로드 처리 중 오류가 발생했습니다.\n\n" + (err?.message || String(err)));
+      } finally {
+        // 같은 파일 다시 선택 가능하도록 초기화
+        e.target.value = "";
+      }
+    });
+
+    // =========================
+    // 초기 실행
+    // =========================
+    applyExpenseRateEditState();  // 기본: 필요경비율 잠금
     initRows(10);
 
     const afterschoolpay_URL =
@@ -554,6 +911,10 @@
     const afterschoolpay = document.getElementById("downloadafterschoolpay");
     if (afterschoolpay) afterschoolpay.href = afterschoolpay_URL;
   </script>
+
+  <div class="btns">
+    <a class="btn" href="/">메인으로 돌아가기</a>
+  </div>
 
   <script src="/static/disable-copy.js"></script>
   <script src="/static/footer.js"></script>
